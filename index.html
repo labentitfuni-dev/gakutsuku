@@ -432,7 +432,8 @@
           <div class="set">
             <label>左右の分け方</label>
             <select id="splitSel">
-              <option value="60" selected>C4で分割（標準）</option>
+              <option value="auto" selected>自動（おすすめ）</option>
+              <option value="60">C4で分割</option>
               <option value="55">G3で分割</option>
               <option value="0">すべて右手（ト音）</option>
               <option value="128">すべて左手（ヘ音）</option>
@@ -1147,7 +1148,7 @@ function getOpts(){
     tsNum, tsDen,
     div: +$('divSel').value,
     key: $('keySel').value,
-    split: +$('splitSel').value,
+    split: $('splitSel').value === 'auto' ? 'auto' : +$('splitSel').value,
     minDur: +$('minDur').value / 1000,
     ampThresh: +$('ampThr').value / 100,
     onsetThresh,
@@ -1168,9 +1169,32 @@ function durTable(div){
   return out;
 }
 
+// 左右の手の自動判定: 音域が1オクターブ以内なら片手の曲、
+// それ以上なら音高分布の「真ん中に近い大きな谷間」を境に左右へ分ける
+// （固定のC4分割だと、曲全体が高め/低めのとき全部が片方の手に寄ってしまうため）
+function autoSplit(notes){
+  const ps = notes.map(n => n.pitch).sort((a,b) => a - b);
+  const span = ps[ps.length - 1] - ps[0];
+  if(span <= 12){
+    const center = (ps[0] + ps[ps.length - 1]) / 2;
+    return center >= 57 ? 0 : 128;   // 高めなら全部ト音、低めなら全部ヘ音
+  }
+  const median = ps[Math.floor(ps.length / 2)];
+  const uniq = [...new Set(ps)];
+  let best = median + 1, bestScore = -Infinity;
+  for(let i = 0; i < uniq.length - 1; i++){
+    const gap = uniq[i + 1] - uniq[i];
+    const mid = (uniq[i] + uniq[i + 1]) / 2;
+    const score = gap - Math.abs(mid - median) * 0.3;
+    if(score > bestScore){ bestScore = score; best = Math.ceil(mid); }
+  }
+  return best;
+}
+
 function buildMeasures(notes, o){
   const useFlat = FLAT_KEYS.has(o.key);
   if(!notes.length) return [];
+  const splitPitch = o.split === 'auto' ? autoSplit(notes) : o.split;
   const t0 = Math.min(...notes.map(n => n.startTime));
   const secPerTick = 60 / o.bpm / o.div;
   const tpm = Math.round(o.tsNum * o.div * 4 / o.tsDen);
@@ -1179,7 +1203,7 @@ function buildMeasures(notes, o){
   for(const n of notes){
     const st = Math.round((n.startTime - t0) / secPerTick);
     const len = Math.max(1, Math.round((n.endTime - n.startTime) / secPerTick));
-    const map = hands[n.pitch >= o.split ? 'treble' : 'bass'];
+    const map = hands[n.pitch >= splitPitch ? 'treble' : 'bass'];
     if(!map.has(st)) map.set(st, {start: st, pitches: [], len: 0});
     const ev = map.get(st);
     if(!ev.pitches.includes(n.pitch)) ev.pitches.push(n.pitch);
