@@ -457,8 +457,8 @@
           <div class="set">
             <label>弱い音を除去</label>
             <div class="inline">
-              <input type="range" id="ampThr" min="0" max="60" step="5" value="35"/>
-              <output id="ampThrOut">35%</output>
+              <input type="range" id="ampThr" min="0" max="60" step="5" value="25"/>
+              <output id="ampThrOut">25%</output>
             </div>
           </div>
         </div>
@@ -823,6 +823,21 @@ async function resampleTo22050(buf){
   return await off.startRendering();
 }
 
+// 小さすぎる録音（マイクが遠い等）を解析前に増幅して検出漏れを減らす
+function normalizeGain(buf){
+  const ch = buf.getChannelData(0);
+  let peak = 0;
+  for(let i = 0; i < ch.length; i++){
+    const a = Math.abs(ch[i]);
+    if(a > peak) peak = a;
+  }
+  if(peak > 0.001 && peak < 0.5){
+    const g = 0.9 / peak;
+    for(let i = 0; i < ch.length; i++) ch[i] *= g;
+  }
+  return buf;
+}
+
 async function runInference(monoBuf, onProgress){
   const frames = [], onsets = [], contours = [];
   await bpModel.evaluateModel(monoBuf,
@@ -867,7 +882,7 @@ async function startRec(){
   }
   mediaStream = stream;
   chunks = [];
-  mediaRec = new MediaRecorder(stream);
+  mediaRec = makeRecorder(stream);
   mediaRec.ondataavailable = e => { if(e.data.size) chunks.push(e.data); };
   mediaRec.onstop = onRecStop;
   mediaRec.start();
@@ -886,6 +901,16 @@ async function startRec(){
   analyser.fftSize = 512;
   src.connect(analyser);
   drawMeter();
+}
+
+// 高音質設定のレコーダーを作る（圧縮による音の劣化＝解析精度低下を抑える）
+function makeRecorder(stream){
+  const opts = {audioBitsPerSecond: 192000};
+  if(window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/webm;codecs=opus')){
+    opts.mimeType = 'audio/webm;codecs=opus';
+  }
+  try{ return new MediaRecorder(stream, opts); }
+  catch(e){ return new MediaRecorder(stream); }
 }
 
 function stopRec(){
@@ -989,7 +1014,7 @@ async function ytStartMicCapture(){
 
 function ytBeginRecording(){
   ytChunks = [];
-  ytRec = new MediaRecorder(ytStream);
+  ytRec = makeRecorder(ytStream);
   ytRec.ondataavailable = e => { if(e.data.size) ytChunks.push(e.data); };
   ytRec.onstop = ytOnStop;
   ytRec.start();
@@ -1046,7 +1071,7 @@ async function handleAudioBuffer(buf){
   busy(true);
   const t0 = performance.now();
   try{
-    const mono = await resampleTo22050(buf);
+    const mono = normalizeGain(await resampleTo22050(buf));
     const {frames, onsets, contours} = await runInference(mono, busyProgress);
     state.frames = frames;
     state.onsets = onsets;
@@ -1071,6 +1096,45 @@ async function handleAudioBuffer(buf){
   busy(false);
 }
 
+// 倍音ゴースト除去: 強い実音と同時に鳴り続ける「整数倍音/サブオクターブ位置のずっと弱い音」は
+// ピアノの響きをモデルが誤検出したもの。+12/+19/+24/-12半音の関係で、実音より十分弱く、
+// 鳴っている時間の大半が実音と重なっている音だけを除去する（本物のオクターブ奏法は音量が近いので残る）
+function removeHarmonicGhosts(notes){
+  return notes.filter(n => {
+    const nDur = n.endTime - n.startTime;
+    for(const m of notes){
+      if(m === n || m.amp <= n.amp * 1.6) continue;
+      const rel = n.pitch - m.pitch;
+      if(rel !== 12 && rel !== 19 && rel !== 24 && rel !== -12) continue;
+      // ゴーストは実音の減衰中に遅れて現れる。同時に始まる音は本物
+      // （例: ベースの1オクターブ上で同時に弾くメロディ）なので消さない
+      if(n.startTime - m.startTime < 0.15) continue;
+      const overlap = Math.min(n.endTime, m.endTime) - Math.max(n.startTime, m.startTime);
+      if(overlap > nDur * 0.6) return false;
+    }
+    return true;
+  });
+}
+
+// 同じ音の不自然な分裂（減衰中の再トリガ誤検出）を結合。
+// 本物の連打を壊さないよう「隙間30ms未満かつ後の音が明確に弱い」場合のみ
+function mergeRetriggers(notes){
+  const sorted = [...notes].sort((a,b) => a.startTime - b.startTime);
+  const lastByPitch = new Map();
+  const out = [];
+  for(const n of sorted){
+    const prev = lastByPitch.get(n.pitch);
+    if(prev && n.startTime - prev.endTime < 0.03 && n.amp < prev.amp * 0.8){
+      prev.endTime = Math.max(prev.endTime, n.endTime);
+    }else{
+      const copy = {...n};
+      out.push(copy);
+      lastByPitch.set(n.pitch, copy);
+    }
+  }
+  return out;
+}
+
 // 生の解析結果から現在の設定で音符リストを作る（再推論なしで即時反映）
 function computeNotes(){
   const o = getOpts();
@@ -1083,14 +1147,17 @@ function computeNotes(){
   const minLenFrames = Math.max(2, Math.round(o.minDur * BP_FPS));
   let evs = BP.outputToNotesPoly(state.frames, state.onsets, o.onsetThresh, o.frameThresh, minLenFrames);
   evs = BP.addPitchBendsToNoteEvents(state.contours, evs);
-  return BP.noteFramesToTime(evs)
+  let list = BP.noteFramesToTime(evs)
     .map(n => ({
       pitch: n.pitchMidi,
       startTime: n.startTimeSeconds,
       endTime: n.startTimeSeconds + n.durationSeconds,
       velocity: Math.max(1, Math.round(n.amplitude * 127)),
       amp: n.amplitude,
-    }))
+    }));
+  list = removeHarmonicGhosts(list);   // 弱い音除去フィルタより先に（音量の比較に全音が必要）
+  list = mergeRetriggers(list);
+  return list
     .filter(n => n.amp >= o.ampThresh)
     .sort((a,b) => a.startTime - b.startTime);
 }
