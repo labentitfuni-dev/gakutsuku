@@ -915,7 +915,13 @@ async function resampleTo22050(buf){
   const off = new OfflineAudioContext(1, len, BP_SR);
   const src = off.createBufferSource();
   src.buffer = buf;
-  src.connect(off.destination);
+  // 28Hz以下の低周波ノイズ（空調・タッチ音・DCオフセット）を除去。
+  // ピアノの最低音A0=27.5Hzは残しつつ、誤検出のもとになる地鳴りを抑える
+  const hp = off.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 28;
+  src.connect(hp);
+  hp.connect(off.destination);
   src.start(0);
   return await off.startRendering();
 }
