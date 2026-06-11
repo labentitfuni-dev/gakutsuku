@@ -260,6 +260,12 @@
   #ytFrameWrap,#ytUrl{background:var(--base)}
   h2{letter-spacing:.02em}
 
+  /* テーマ切替（コンパクト: 丸1つ→タップで展開） */
+  #themeWrap{position:relative;flex:none}
+  #themePop{position:absolute;top:38px;right:-6px;display:flex;gap:10px;padding:12px 14px;
+    background:var(--base);border:1px solid var(--t15);border-radius:16px;box-shadow:var(--shadow);z-index:45}
+  #themePop[hidden]{display:none}
+
   /* 性別の選択マーク */
   .segRow{display:flex;gap:10px;margin-bottom:12px}
   .segBtn{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;
@@ -306,11 +312,16 @@
 <header id="topbar" hidden>
   <span class="brand" id="brandHome">ガクツク</span>
   <span class="spacer"></span>
-  <button class="themeDot" data-theme="shirokuro" title="白黒" style="background:linear-gradient(135deg,#ffffff 50%,#111111 50%)"></button>
-  <button class="themeDot" data-theme="aoshiro" title="青白" style="background:linear-gradient(135deg,#ffffff 50%,#1d4ed8 50%)"></button>
-  <button class="themeDot" data-theme="pinkshiro" title="ピンク白" style="background:linear-gradient(135deg,#ffffff 50%,#db2777 50%)"></button>
-  <button class="themeDot" data-theme="kuroao" title="黒青" style="background:linear-gradient(135deg,#0b1020 50%,#5b9bff 50%)"></button>
-  <button class="themeDot" data-theme="kiiroshiro" title="白黄" style="background:linear-gradient(135deg,#ffffff 50%,#eab308 50%)"></button>
+  <div id="themeWrap">
+    <button class="themeDot" id="btnTheme" title="テーマの色を変更"></button>
+    <div id="themePop" hidden>
+      <button class="themeDot" data-theme="shirokuro" title="白黒" style="background:linear-gradient(135deg,#ffffff 50%,#111111 50%)"></button>
+      <button class="themeDot" data-theme="aoshiro" title="青白" style="background:linear-gradient(135deg,#ffffff 50%,#1d4ed8 50%)"></button>
+      <button class="themeDot" data-theme="pinkshiro" title="ピンク白" style="background:linear-gradient(135deg,#ffffff 50%,#db2777 50%)"></button>
+      <button class="themeDot" data-theme="kuroao" title="黒青" style="background:linear-gradient(135deg,#0b1020 50%,#5b9bff 50%)"></button>
+      <button class="themeDot" data-theme="kiiroshiro" title="白黄" style="background:linear-gradient(135deg,#ffffff 50%,#eab308 50%)"></button>
+    </div>
+  </div>
   <button class="iconBtn" id="btnSettingsModal" title="アカウント設定">⚙️</button>
   <button class="iconBtn" id="btnLogout" title="ログアウト">🚪</button>
 </header>
@@ -711,7 +722,12 @@ function applyTheme(name, save = true){
   document.documentElement.style.setProperty('--base', t.base);
   document.querySelector('meta[name=theme-color]').content = t.base === '#ffffff' ? t.main : t.base;
   if(save) Store.set(themeKey(), name);
-  document.querySelectorAll('.themeDot').forEach(d => d.classList.toggle('active', d.dataset.theme === name));
+  document.querySelectorAll('.themeDot[data-theme]').forEach(d => d.classList.toggle('active', d.dataset.theme === name));
+  // トリガーの丸に現在のテーマ2色を表示
+  const trigger = document.getElementById('btnTheme');
+  const activeDot = document.querySelector(`.themeDot[data-theme="${name}"]`) ||
+    document.querySelector('.themeDot[data-theme="shirokuro"]');
+  if(trigger && activeDot) trigger.style.background = activeDot.style.background;
 }
 
 /* =================================================================
@@ -2196,8 +2212,18 @@ function resetGenderSeg(segId, hidId){
 bindGenderSeg('suGenderSeg', 'suGender');
 bindGenderSeg('rcGenderSeg', 'rcGender');
 
-// テーマ
-document.querySelectorAll('.themeDot').forEach(d => d.addEventListener('click', () => applyTheme(d.dataset.theme)));
+// テーマ（コンパクト切替: 丸1つ→タップで候補を展開）
+document.querySelectorAll('.themeDot[data-theme]').forEach(d => d.addEventListener('click', () => {
+  applyTheme(d.dataset.theme);
+  $('themePop').hidden = true;
+}));
+$('btnTheme').addEventListener('click', e => {
+  e.stopPropagation();
+  $('themePop').hidden = !$('themePop').hidden;
+});
+document.addEventListener('click', e => {
+  if(!$('themePop').hidden && !$('themeWrap').contains(e.target)) $('themePop').hidden = true;
+});
 
 // ホーム
 $('brandHome').addEventListener('click', () => showView('viewHome'));
