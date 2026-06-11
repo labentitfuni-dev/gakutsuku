@@ -1,5 +1,5 @@
 // ガクツク Service Worker — アプリ本体はキャッシュ優先、CDN/モデル/フォントは stale-while-revalidate
-const CACHE = 'gakutsuku-v5';
+const CACHE = 'gakutsuku-v6';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

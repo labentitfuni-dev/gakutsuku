@@ -500,8 +500,8 @@
           <div class="set">
             <label>最小音価</label>
             <select id="divSel">
-              <option value="4" selected>16分音符</option>
-              <option value="2">8分音符</option>
+              <option value="2" selected>8分音符</option>
+              <option value="4">16分音符</option>
             </select>
           </div>
           <div class="set">
@@ -1458,83 +1458,72 @@ function durTable(div){
   return out;
 }
 
-/* 左右の手の動的分析:
-   固定の境界線では「曲の途中で左手の音域が上がる」と全部右手に寄ってしまう。
-   左右の手の現在位置（中心音高）を時間を追って推定し、各音を近い方の手に割り当てる。
-   - 同時に鳴る音が14半音（手が届く範囲）を超える場合は必ず2手に分ける
-   - 曲全体が1オクターブ以内なら片手の曲として1段にまとめる */
+// 音高の集合を2クラスタ（左手/右手）に分ける1次元k-means。
+// 中心が固定でなくデータから決まるので、曲全体が高め/低めでも正しい境界を見つける
+function kmeans2(pitches){
+  let lo = Math.min(...pitches), hi = Math.max(...pitches);
+  for(let it = 0; it < 30; it++){
+    let sl = 0, nl = 0, sh = 0, nh = 0;
+    for(const p of pitches){
+      if(Math.abs(p - lo) <= Math.abs(p - hi)){ sl += p; nl++; } else { sh += p; nh++; }
+    }
+    const nlo = nl ? sl / nl : lo, nhi = nh ? sh / nh : hi;
+    if(Math.abs(nlo - lo) < 0.05 && Math.abs(nhi - hi) < 0.05){ lo = nlo; hi = nhi; break; }
+    lo = nlo; hi = nhi;
+  }
+  return [lo, hi];
+}
+
+/* 左右の手の分析（安定版・k-means）:
+   曲全体の音高分布から左右2つのかたまりの「谷」を求め、そこを境界に固定する。
+   時間追従させると中心がずれて右手の音が左手に落ちるため、安定した境界を使う。
+   - 音域が1オクターブ強以内 → 片手の曲として1段にまとめる
+   - 同時押しが14半音（手が届く幅）を超える和音は、その場で大きな隙間から2手に分ける */
 function assignHands(notes){
   const result = new Map();
   if(!notes.length) return result;
   const allP = notes.map(n => n.pitch);
-  const span = Math.max(...allP) - Math.min(...allP);
-  if(span <= 12){
-    const center = (Math.max(...allP) + Math.min(...allP)) / 2;
-    const hand = center >= 57 ? 'treble' : 'bass';
+  const lo = Math.min(...allP), hi = Math.max(...allP);
+  if(hi - lo <= 13){
+    const hand = (lo + hi) / 2 >= 59 ? 'treble' : 'bass';
     notes.forEach(n => result.set(n, hand));
     return result;
   }
-  // 同時刻（クラスタ済み _qStart）ごとのイベント列を作る
-  const events = [];
-  let cur = null;
-  for(const n of notes){
-    if(!cur || n._qStart !== cur.t){ cur = {t: n._qStart, notes: []}; events.push(cur); }
-    cur.notes.push(n);
+  const [cLo, cHi] = kmeans2(allP);
+  if(cHi - cLo < 7){
+    const hand = (cLo + cHi) / 2 >= 59 ? 'treble' : 'bass';
+    notes.forEach(n => result.set(n, hand));
+    return result;
   }
-  // 冒頭の数イベントから左右の手の初期位置を推定
-  const seed = events.slice(0, 8).flatMap(e => e.notes.map(x => x.pitch)).sort((a,b) => a - b);
-  let lhC, rhC;
-  const seedSpan = seed[seed.length - 1] - seed[0];
-  if(seedSpan <= 12){
-    const m = (seed[0] + seed[seed.length - 1]) / 2;
-    lhC = m - 4; rhC = m + 4;
-  }else{
-    const med = seed[Math.floor(seed.length / 2)];
-    let gi = 0, g = -Infinity;
-    for(let i = 0; i < seed.length - 1; i++){
-      const score = (seed[i+1] - seed[i]) - Math.abs((seed[i] + seed[i+1]) / 2 - med) * 0.3;
-      if(score > g){ g = score; gi = i; }
+  // 境界は2つのかたまりの間にある「実際の最大の隙間」に置く。
+  // 単純な中点だと、隙間の手前/奥の音を反対の手に取られてしまうため
+  const uniq = [...new Set(allP)].sort((a,b) => a - b);
+  let split = (cLo + cHi) / 2, bestGap = -1;
+  for(let i = 0; i < uniq.length - 1; i++){
+    const mid = (uniq[i] + uniq[i+1]) / 2;
+    if(mid > cLo && mid < cHi){
+      const gap = uniq[i+1] - uniq[i];
+      if(gap > bestGap){ bestGap = gap; split = mid; }
     }
-    const lo = seed.slice(0, gi + 1), hi = seed.slice(gi + 1);
-    lhC = lo.reduce((a,b) => a + b, 0) / lo.length;
-    rhC = hi.reduce((a,b) => a + b, 0) / hi.length;
   }
-  for(const ev of events){
-    const ps = ev.notes.map(n => n.pitch).sort((a,b) => a - b);
-    const evSpan = ps[ps.length - 1] - ps[0];
-    let hands;
-    if(ev.notes.length > 1 && evSpan > 14){
-      // 片手では届かない同時押し → 一番大きな隙間で2手に分割
+  // 同時刻（_qStart）ごとに、届かない和音だけ個別分割。その他は固定境界で振り分け
+  const groups = new Map();
+  for(const n of notes){
+    if(!groups.has(n._qStart)) groups.set(n._qStart, []);
+    groups.get(n._qStart).push(n);
+  }
+  for(const ev of groups.values()){
+    const ps = ev.map(n => n.pitch).sort((a,b) => a - b);
+    if(ev.length > 1 && ps[ps.length - 1] - ps[0] > 14){
       let gi = 0, g = -1;
       for(let i = 0; i < ps.length - 1; i++){
         if(ps[i+1] - ps[i] > g){ g = ps[i+1] - ps[i]; gi = i; }
       }
       const cut = (ps[gi] + ps[gi + 1]) / 2;
-      hands = ev.notes.map(n => n.pitch > cut ? 'treble' : 'bass');
+      ev.forEach(n => result.set(n, n.pitch > cut ? 'treble' : 'bass'));
     }else{
-      // 近い方の手に割り当てる（手の位置は曲の進行とともに移動する）
-      hands = ev.notes.map(n => Math.abs(n.pitch - rhC) < Math.abs(n.pitch - lhC) ? 'treble' : 'bass');
-      // 補正: 中央のC4付近をまたいで同時に打鍵された音（間隔7半音以上）は
-      // 典型的な「ベース＋メロディ」なので、片手にまとまってしまった場合は2手に分ける
-      if(ev.notes.length > 1 && hands.every(h => h === hands[0]) &&
-         evSpan >= 7 && ps[0] <= 55 && ps[ps.length - 1] >= 57){
-        let gi = 0, g = -1;
-        for(let i = 0; i < ps.length - 1; i++){
-          if(ps[i+1] - ps[i] > g){ g = ps[i+1] - ps[i]; gi = i; }
-        }
-        const cut = (ps[gi] + ps[gi + 1]) / 2;
-        hands = ev.notes.map(n => n.pitch > cut ? 'treble' : 'bass');
-      }
+      ev.forEach(n => result.set(n, n.pitch >= split ? 'treble' : 'bass'));
     }
-    const lhP = [], rhP = [];
-    ev.notes.forEach((n, i) => {
-      result.set(n, hands[i]);
-      (hands[i] === 'treble' ? rhP : lhP).push(n.pitch);
-    });
-    // 手の現在位置を更新（急に飛ばないよう緩やかに追従）
-    if(lhP.length) lhC = lhC * 0.75 + (lhP.reduce((a,b) => a + b, 0) / lhP.length) * 0.25;
-    if(rhP.length) rhC = rhC * 0.75 + (rhP.reduce((a,b) => a + b, 0) / rhP.length) * 0.25;
-    if(rhC - lhC < 7){ const m = (lhC + rhC) / 2; lhC = m - 3.5; rhC = m + 3.5; }
   }
   return result;
 }
@@ -1646,12 +1635,13 @@ function renderAll(){
 
 // measures を systems 単位 [sysFrom, sysTo) で container に描画する（PDFのページ分割にも使う）
 function drawScoreInto(container, measures, o, W, sysFrom, sysTo){
-  const MPL = 4;
+  // 1行あたりの小節数を幅から決める（狭い画面ほど少なく＝詰め込みすぎを防ぐ）
+  const MPL = W >= 900 ? 3 : 2;
   const totalSystems = Math.ceil(measures.length / MPL);
   const from = Math.max(0, sysFrom);
   const to = Math.min(totalSystems, sysTo);
   const count = Math.max(0, to - from);
-  const SYS_H = 240, TOP = 14, LEFT = 10, EXTRA = 64;
+  const SYS_H = 270, TOP = 16, LEFT = 10, EXTRA = 70;
   const renderer = new VF.Renderer(container, VF.Renderer.Backends.SVG);
   renderer.resize(W, TOP + count * SYS_H + 20);
   const ctx = renderer.getContext();
@@ -1661,7 +1651,7 @@ function drawScoreInto(container, measures, o, W, sysFrom, sysTo){
     const row = measures.slice(s * MPL, (s + 1) * MPL);
     const baseW = Math.floor((W - LEFT * 2 - EXTRA) / MPL);
     let x = LEFT;
-    const yT = TOP + si * SYS_H, yB = yT + 100;
+    const yT = TOP + si * SYS_H, yB = yT + 118;
 
     row.forEach((m, i) => {
       const w = baseW + (i === 0 ? EXTRA : 0);
@@ -2067,10 +2057,10 @@ async function buildPdfBlob(){
   const {jsPDF} = window.jspdf;
   const doc = new jsPDF({unit: 'mm', format: 'a4'});
   const pageW = 210, pageH = 297, margin = 12, headerH = 8;
-  const RENDER_W = 760, SYS_H = 240;
+  const RENDER_W = 760, SYS_H = 270, MPL = 2;   // drawScoreInto(W=760)はMPL=2・SYS_H=270で描く
   const scale = (pageW - margin * 2) / RENDER_W;
   const sysPerPage = Math.max(1, Math.floor((pageH - margin * 2 - headerH) / (SYS_H * scale)));
-  const totalSystems = Math.ceil(measures.length / 4);
+  const totalSystems = Math.ceil(measures.length / MPL);
   const pages = Math.ceil(totalSystems / sysPerPage);
 
   const tmp = document.createElement('div');
