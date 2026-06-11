@@ -581,7 +581,17 @@
   <!-- 管理（masterのみ） -->
   <section id="viewAdmin" hidden>
     <button class="backBtn" id="btnAdmBack">← 戻る</button>
-    <h2 style="margin:4px 0 16px">👑 アカウント一覧</h2>
+    <h2 style="margin:4px 0 16px">👑 管理</h2>
+    <div style="border:1px solid var(--t08);border-radius:16px;background:var(--base);padding:16px;margin-bottom:18px">
+      <label style="font-size:13px;font-weight:700;display:block;margin-bottom:6px">🔗 YouTube中継サーバーのURL</label>
+      <p style="font-size:12px;opacity:.65;margin:0 0 8px">設定すると、YouTubeのリンクを貼った瞬間に<b>ダイアログなし・無音</b>で内部読み取りします（worker.js を Cloudflare に配置して、発行されたURLを貼ってください）。</p>
+      <div style="display:flex;gap:8px">
+        <input id="ytProxyInput" placeholder="https://xxx.workers.dev" style="flex:1;font-size:14px;padding:10px;border:1.5px solid var(--t15);border-radius:10px;background:var(--t04);color:var(--main)"/>
+        <button class="miniBtn" id="btnSaveProxy" style="padding:10px 16px">保存</button>
+      </div>
+      <div id="proxyMsg" style="font-size:12px;font-weight:700;min-height:1.1em;margin-top:6px"></div>
+    </div>
+    <h3 style="margin:4px 0 10px;font-size:16px">アカウント一覧</h3>
     <p style="font-size:12px;opacity:.6">保存されているのはIDとハッシュのみです。名前などの個人情報はどこにも保存されていません。</p>
     <div id="admList"></div>
     <div id="admEmpty" hidden>アカウントはまだありません</div>
@@ -657,7 +667,12 @@ const CONFIG = {
     enabled: false,
     premiumFeatures: ['youtube', 'pdf', 'midi'],
   },
+  // YouTube中継サーバー（Cloudflare Worker）のURL。設定すると、リンクを貼った瞬間に
+  // ダイアログなし・無音で動画の音声を内部読み取りして楽譜化する。
+  // 管理者(master)の「👑 管理」画面からも設定でき、そちらが優先される（gk_yt_proxy）。
+  YT_PROXY: '',
 };
+function ytProxy(){ return (Store.get('gk_yt_proxy', '') || CONFIG.YT_PROXY || '').replace(/\/+$/, ''); }
 
 /* ================= 安全なストレージ ================= */
 const Store = {
@@ -1070,6 +1085,25 @@ async function loadLink(){
   if(!url) return;
   const ytId = parseYouTubeId(url);
   if(ytId){
+    // 中継サーバーが設定されていれば、ダイアログなし・無音で内部読み取り
+    const proxy = ytProxy();
+    if(proxy){
+      busy(true);
+      $('busyText').textContent = '🔗 動画を読み込み中…';
+      try{
+        const r = await fetch(`${proxy}/yt?id=${ytId}`);
+        if(!r.ok) throw new Error('proxy HTTP ' + r.status);
+        const ab = await r.arrayBuffer();
+        busy(false);
+        await decodeAndTranscribe(ab);   // OfflineAudioContextで無音解析
+        return;
+      }catch(e){
+        busy(false);
+        console.warn('yt proxy failed', e);
+        toast('中継サーバーから取得できませんでした。共有方式に切り替えます', true);
+        // 下のタブ取り込み方式にフォールバック
+      }
+    }
     const wrap = $('ytFrameWrap');
     wrap.innerHTML = `<iframe id="ytFrame" src="https://www.youtube.com/embed/${ytId}?enablejsapi=1" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
     wrap.style.display = 'block';
@@ -1270,12 +1304,18 @@ function removeHarmonicGhosts(notes){
   return notes.filter(n => {
     const nDur = n.endTime - n.startTime;
     for(const m of notes){
-      if(m === n || m.amp <= n.amp * 1.6) continue;
+      if(m === n) continue;
       const rel = n.pitch - m.pitch;
-      if(rel !== 12 && rel !== 19 && rel !== 24 && rel !== -12) continue;
-      if(n.startTime - m.startTime < 0.15) continue;
+      const upper = (rel === 12 || rel === 19 || rel === 24);   // 上の倍音位置
+      const lower = (rel === -12 || rel === -19 || rel === -24); // 下のサブ倍音位置(1/2,1/3,1/4)
+      if(!upper && !lower) continue;
       const overlap = Math.min(n.endTime, m.endTime) - Math.max(n.startTime, m.startTime);
-      if(overlap > nDur * 0.6) return false;
+      if(overlap <= nDur * 0.6) continue;
+      // 上倍音ゴースト: 実音より1.6倍以上弱く、減衰中に遅れて出現したもの
+      if(upper && m.amp > n.amp * 1.6 && (n.startTime - m.startTime) >= 0.15) return false;
+      // 下サブ倍音ゴースト(C4→F2等): 同時に出やすいので、2.2倍以上弱ければ除去
+      // （本物のベースはこれほど弱くないため残る）
+      if(lower && m.amp > n.amp * 2.2) return false;
     }
     return true;
   });
@@ -1842,6 +1882,8 @@ function openLibItem(id){
 
 /* ================= 管理（masterのみ） ================= */
 function renderAdmin(){
+  $('ytProxyInput').value = ytProxy();
+  $('proxyMsg').textContent = '';
   const accounts = Auth.accounts();
   const ids = Object.keys(accounts);
   const list = $('admList');
@@ -2137,6 +2179,12 @@ $('btnYtStop').addEventListener('click', ytStopCapture);
 // ライブラリ・管理
 $('btnLibBack').addEventListener('click', () => showView('viewHome'));
 $('btnAdmBack').addEventListener('click', () => showView('viewHome'));
+$('btnSaveProxy').addEventListener('click', () => {
+  let v = $('ytProxyInput').value.trim().replace(/\/+$/, '');
+  if(v && !/^https:\/\/.+/.test(v)){ $('proxyMsg').textContent = 'https:// から始まるURLを入力してください'; return; }
+  Store.set('gk_yt_proxy', v);
+  $('proxyMsg').textContent = v ? '保存しました ✅（YouTubeリンクは内部読み取りになります）' : '中継サーバーを解除しました';
+});
 
 // 結果
 $('btnResBack').addEventListener('click', () => { stopPlay(); showView('viewHome'); });
@@ -2213,7 +2261,7 @@ if('serviceWorker' in navigator && location.protocol === 'https:'){
 
 // 動作テスト用フック
 window.gakutsuku = {state, handleAudioBuffer, computeNotes, renderAll, buildMidiBytes, buildPdfBlob,
-  getOpts, applyTheme, parseYouTubeId, Auth, Plans, loadLib, deriveId, initialPass, Store};
+  getOpts, applyTheme, parseYouTubeId, Auth, Plans, loadLib, deriveId, initialPass, Store, ytProxy};
 </script>
 </body>
 </html>
