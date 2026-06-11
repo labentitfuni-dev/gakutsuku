@@ -1145,7 +1145,10 @@ function computeNotes(){
   }
   if(!state.frames || !state.frames.length) return [];
   const minLenFrames = Math.max(2, Math.round(o.minDur * BP_FPS));
-  let evs = BP.outputToNotesPoly(state.frames, state.onsets, o.onsetThresh, o.frameThresh, minLenFrames);
+  // energyTolerance=28(約330ms): 持続音の途中で検出が一瞬途切れても1つの音として
+  // つなぐ（音の分裂防止）。新しい打鍵はonsetで検出されるので本物の連打は分かれたまま
+  let evs = BP.outputToNotesPoly(state.frames, state.onsets, o.onsetThresh, o.frameThresh, minLenFrames,
+    true, null, null, true, 28);
   evs = BP.addPitchBendsToNoteEvents(state.contours, evs);
   let list = BP.noteFramesToTime(evs)
     .map(n => ({
@@ -1266,10 +1269,20 @@ function buildMeasures(notes, o){
   const secPerTick = 60 / o.bpm / o.div;
   const tpm = Math.round(o.tsNum * o.div * 4 / o.tsDen);
 
+  // 同時に弾いた音のわずかなずれ(数十ms)を揃える: ずれたままだと
+  // 和音がバラバラの細かい刻みに割れて楽譜が汚くなる
+  const sorted = [...notes].sort((a,b) => a.startTime - b.startTime);
+  const clusterTol = Math.min(0.08, secPerTick * 0.45);
+  let anchor = null;
+  for(const n of sorted){
+    if(anchor === null || n.startTime - anchor > clusterTol) anchor = n.startTime;
+    n._qStart = anchor;
+  }
+
   const hands = {treble: new Map(), bass: new Map()};
-  for(const n of notes){
-    const st = Math.round((n.startTime - t0) / secPerTick);
-    const len = Math.max(1, Math.round((n.endTime - n.startTime) / secPerTick));
+  for(const n of sorted){
+    const st = Math.round((n._qStart - t0) / secPerTick);
+    const len = Math.max(1, Math.round((n.endTime - n._qStart) / secPerTick));
     const map = hands[n.pitch >= splitPitch ? 'treble' : 'bass'];
     if(!map.has(st)) map.set(st, {start: st, pitches: [], len: 0});
     const ev = map.get(st);
@@ -1304,10 +1317,14 @@ function layoutHand(map, mi, tpm, table, useFlat){
   for(let i = 0; i < evs.length; i++){
     const e = evs[i];
     fillRests(items, e.start - cursor, table);
-    let len = e.len;
+    // ピアノは減衰が速く、検出される長さは楽譜上の音価より短くなりがち。
+    // 次の音までの隙間の大半を占めるか、隙間が1tick以下なら次の音まで伸ばす
+    // （4分音符が16分音符+細切れ休符に化けるのを防ぐ）。長い空白=本物の休符は残す
     const next = evs[i + 1];
-    if(next) len = Math.min(len, next.start - e.start);
-    len = Math.min(len, m1 - e.start);
+    const ioi = (next ? next.start : m1) - e.start;
+    let len = e.len;
+    if(len < ioi && (len >= ioi * 0.3 || ioi - len <= 1)) len = ioi;
+    len = Math.min(len, ioi, m1 - e.start);
     const pick = table.find(x => x.t <= len) || table[table.length - 1];
     items.push({
       kind: 'note',
