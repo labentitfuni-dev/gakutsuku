@@ -469,7 +469,7 @@
       <button class="bigBtn" id="btnYtCapture">▶ 分析する</button>
       <button class="linkBtn" id="btnYtMicToggle" style="display:none">うまくいかない時は、マイクで録音する</button>
       <button class="bigBtn ghostBtn" id="btnYtMic" hidden>🎤 マイクで録音する</button>
-      <button class="bigBtn" id="btnYtStop" hidden>■ 止めて楽譜にする</button>
+      <button class="bigBtn" id="btnYtStop" hidden>■ 停止</button>
     </div>
     <div id="ytTimer">00:00</div>
     <div id="ytHint"></div>
@@ -1030,9 +1030,9 @@ async function startRec(){
   mediaRec.start();
   state.recording = true;
   recStartMs = performance.now();
-  $('btnRecBig').innerHTML = '■ 止めて<br/>楽譜にする';
+  $('btnRecBig').innerHTML = '■ 停止';
   $('btnRecBig').classList.add('rec');
-  $('recHint').textContent = '演奏が終わったら真ん中のボタンを押してください';
+  $('recHint').textContent = '録音中…';
   recTimer = setInterval(() => {
     const s = (performance.now() - recStartMs) / 1000;
     $('recTime').textContent = fmtTime(s);
@@ -1211,7 +1211,7 @@ function ytBeginRecording(){
     $('ytTimer').textContent = fmtTime(s);
     if(s >= 300){ toast('5分が経過したため停止しました'); ytStopCapture(); }
   }, 200);
-  $('ytHint').textContent = '取り込み中… 演奏が終わったら「止めて楽譜にする」を押してください';
+  $('ytHint').textContent = '取り込み中…';
 }
 
 function ytStopCapture(){
