@@ -1279,8 +1279,9 @@ async function handleAudioBuffer(buf){
   busy(false);
 }
 
-// モデル出力のちらつき除去: フレームごとの確率に3フレーム中央値フィルタをかける。
-// 一瞬だけ高く出る誤検出や一瞬だけ落ちる途切れが消え、音の分裂・誤検出が減る
+// 検出の途切れだけを埋める（持続音が一瞬切れて2つに割れるのを防ぐ）。
+// 値を下げることは絶対にしないので、短い音（スタッカート・速い音）は消えない。
+// out[i] = max(自分, min(前, 後)) … 前後が高く自分だけ低い「谷」だけが持ち上がる
 function medianSmoothFrames(frames){
   if(frames.length < 3) return frames;
   const out = [frames[0]];
@@ -1288,8 +1289,7 @@ function medianSmoothFrames(frames){
     const a = frames[i-1], b = frames[i], c = frames[i+1];
     const row = new Array(b.length);
     for(let j = 0; j < b.length; j++){
-      const x = a[j], y = b[j], z = c[j];
-      row[j] = Math.max(Math.min(x, y), Math.min(Math.max(x, y), z));  // 3値の中央値
+      row[j] = Math.max(b[j], Math.min(a[j], c[j]));
     }
     out.push(row);
   }
