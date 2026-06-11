@@ -1,5 +1,5 @@
-// ガクツク Service Worker — アプリ本体はキャッシュ優先、CDN/モデルは stale-while-revalidate
-const CACHE = 'gakutsuku-v2';
+// ガクツク Service Worker — アプリ本体はキャッシュ優先、CDN/モデル/フォントは stale-while-revalidate
+const CACHE = 'gakutsuku-v4';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -14,7 +14,7 @@ self.addEventListener('activate', e => {
   );
 });
 
-const CDN_HOSTS = ['cdn.jsdelivr.net', 'esm.run', 'storage.googleapis.com'];
+const CDN_HOSTS = ['cdn.jsdelivr.net', 'esm.run', 'storage.googleapis.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
@@ -33,7 +33,7 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // CDN・モデル・音サンプル: stale-while-revalidate（2回目以降オフラインでも動く）
+  // CDN・モデル・音源・フォント: stale-while-revalidate（2回目以降はオフラインでも動く）
   if(CDN_HOSTS.some(h => url.hostname.endsWith(h))){
     e.respondWith(
       caches.match(e.request).then(hit => {
