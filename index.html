@@ -1313,9 +1313,13 @@ function removeHarmonicGhosts(notes){
       if(overlap <= nDur * 0.6) continue;
       // 上倍音ゴースト: 実音より1.6倍以上弱く、減衰中に遅れて出現したもの
       if(upper && m.amp > n.amp * 1.6 && (n.startTime - m.startTime) >= 0.15) return false;
-      // 下サブ倍音ゴースト(C4→F2等): 同時に出やすいので、2.2倍以上弱ければ除去
-      // （本物のベースはこれほど弱くないため残る）
-      if(lower && m.amp > n.amp * 2.2) return false;
+      // 下サブ倍音ゴースト(C4→F2等): ①よほど弱い(2.2倍)か、②強い音の減衰中に
+      // 遅れて湧いた(0.3秒以上後)やや弱い音(1.4倍)を除去。本物のベースは実音とほぼ同時に
+      // 打鍵されるため「遅れて出現」に該当せず残る
+      if(lower){
+        const late = (n.startTime - m.startTime) >= 0.3;
+        if(m.amp > n.amp * 2.2 || (late && m.amp > n.amp * 1.4)) return false;
+      }
     }
     return true;
   });
