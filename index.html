@@ -229,6 +229,48 @@
 
   footer{font-size:11px;opacity:.45;text-align:center;margin-top:38px}
 
+  /* ===== 上質感リファイン: ページは淡い下地、面は持ち上げる ===== */
+  body{background:color-mix(in srgb, var(--main) 4%, var(--base))}
+  #topbar{background:color-mix(in srgb, var(--base) 82%, transparent);box-shadow:0 1px 0 var(--t08)}
+  .homeCard{background:var(--base);border:1px solid var(--t08);
+    box-shadow:0 1px 2px var(--t08), 0 14px 30px -20px var(--t25)}
+  .homeCard:hover{box-shadow:0 2px 4px var(--t08), 0 20px 44px -18px var(--t25);border-color:var(--t15)}
+  .homeCard .em{background:linear-gradient(135deg, var(--t08), var(--t15))}
+  .bigBtn{background:linear-gradient(135deg, var(--main), color-mix(in srgb, var(--main) 78%, var(--base)));
+    box-shadow:0 2px 4px var(--t25), 0 14px 28px -12px var(--t25)}
+  .ghostBtn{background:var(--base);border:2px solid var(--t15);color:var(--main);box-shadow:0 1px 2px var(--t08)}
+  .ghostBtn:hover{border-color:var(--main)}
+  #viewLogin .logo{background:linear-gradient(150deg, var(--main), color-mix(in srgb, var(--main) 72%, var(--base)))}
+  .authBox{background:var(--base);border:1px solid var(--t08);border-radius:28px;padding:34px 28px;
+    box-shadow:0 1px 2px var(--t08), 0 28px 64px -30px var(--t25);margin-top:5vh}
+  .authBox input,.authBox select{background:color-mix(in srgb, var(--main) 3%, var(--base))}
+  #score{box-shadow:inset 0 1px 3px var(--t08)}
+  .libItem{background:var(--base);border:1px solid var(--t08);box-shadow:0 1px 2px var(--t08)}
+  #settingsBox{background:var(--base);border:1px solid var(--t08)}
+  .modalBox{border:1px solid var(--t15);box-shadow:0 32px 84px -24px var(--t25)}
+  #btnRecBig{background:linear-gradient(160deg, var(--main), color-mix(in srgb, var(--main) 75%, var(--base)));
+    border:10px solid var(--base);outline:1px solid var(--t15);box-shadow:0 20px 48px -16px var(--t25)}
+  .chip{background:var(--base);border:1px solid var(--t08);box-shadow:0 1px 2px var(--t08)}
+  #ytFrameWrap,#ytUrl{background:var(--base)}
+  h2{letter-spacing:.02em}
+
+  /* 性別の選択マーク */
+  .segRow{display:flex;gap:10px;margin-bottom:12px}
+  .segBtn{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;
+    border:2px solid var(--t15);border-radius:14px;background:var(--base);cursor:pointer;
+    font-size:12.5px;font-weight:700;color:var(--main);transition:border-color .12s, background .12s}
+  .segBtn .mk{font-size:26px;line-height:1}
+  .segBtn.active{border-color:var(--main);background:var(--t08)}
+
+  /* iPhoneでひらがなを含むパスワードを入力できるように（伏せ字表示のテキスト欄） */
+  .secret{-webkit-text-security:disc;text-security:disc}
+
+  /* 設定項目: 1項目ずつカード化して整理 */
+  .set{background:color-mix(in srgb, var(--main) 3%, var(--base));border:1px solid var(--t08);
+    border-radius:14px;padding:12px 14px;min-width:132px}
+  .set label{opacity:.72;font-size:11.5px;letter-spacing:.04em}
+  .set select{width:100%}
+
   @media print{
     body *{visibility:hidden}
     #score,#score *{visibility:visible}
@@ -251,7 +293,7 @@
       <circle cx="28" cy="58" r="2.6" fill="var(--base)"/>
     </svg></span><span class="sChar">ツ</span><span class="sChar">ク</span>
   </div>
-  <div id="splashSub">すべての音楽へ携わり、始まりをシンプルにする。</div>
+  <div id="splashSub">すべての音楽の始まりをシンプルに。</div>
   <div id="splashSkip">タップでスキップ</div>
 </div>
 
@@ -272,11 +314,12 @@
     <div class="authBox">
       <div class="logo">♪</div>
       <h1>ガクツク</h1>
-      <div class="vision">すべての音楽へ携わり、始まりをシンプルにする。</div>
+      <div class="vision">すべての音楽の始まりをシンプルに。</div>
       <label for="loginId">ID（英数5文字）</label>
       <input id="loginId" placeholder="例: AB3F7" autocomplete="username" maxlength="6" style="text-transform:uppercase"/>
       <label for="loginPass">パスワード</label>
-      <input id="loginPass" type="password" placeholder="名前＋誕生日の月日（例: たろう0412）" autocomplete="current-password"/>
+      <input id="loginPass" type="text" class="secret" placeholder="名前＋誕生日の月日（例: たろう0412）"
+        autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"/>
       <div class="formErr" id="loginErr"></div>
       <button class="bigBtn" id="btnLogin">ログイン</button>
       <button class="linkBtn" id="toSignup">初めての方はこちら（アカウント作成）</button>
@@ -338,13 +381,13 @@
         <input id="suName" maxlength="20" placeholder="例: たろう"/>
         <label for="suBday">誕生日</label>
         <input id="suBday" type="date"/>
-        <label for="suGender">性別</label>
-        <select id="suGender">
-          <option value="">選んでください</option>
-          <option value="m">男の子</option>
-          <option value="f">女の子</option>
-          <option value="x">回答しない</option>
-        </select>
+        <label>性別</label>
+        <div class="segRow" id="suGenderSeg">
+          <button type="button" class="segBtn" data-v="m"><span class="mk">👦</span>男の子</button>
+          <button type="button" class="segBtn" data-v="f"><span class="mk">👧</span>女の子</button>
+          <button type="button" class="segBtn" data-v="x"><span class="mk">✨</span>回答しない</button>
+        </div>
+        <input type="hidden" id="suGender" value=""/>
         <div class="formErr" id="signupErr"></div>
         <button class="bigBtn" id="btnSignup">アカウントを作成</button>
         <p style="font-size:12px;opacity:.6">※ 名前・誕生日・性別はIDの生成にのみ使用し、保存されません</p>
@@ -362,13 +405,13 @@
       <input id="rcName" maxlength="20"/>
       <label for="rcBday">誕生日</label>
       <input id="rcBday" type="date"/>
-      <label for="rcGender">性別</label>
-      <select id="rcGender">
-        <option value="">選んでください</option>
-        <option value="m">男の子</option>
-        <option value="f">女の子</option>
-        <option value="x">回答しない</option>
-      </select>
+      <label>性別</label>
+      <div class="segRow" id="rcGenderSeg">
+        <button type="button" class="segBtn" data-v="m"><span class="mk">👦</span>男の子</button>
+        <button type="button" class="segBtn" data-v="f"><span class="mk">👧</span>女の子</button>
+        <button type="button" class="segBtn" data-v="x"><span class="mk">✨</span>回答しない</button>
+      </div>
+      <input type="hidden" id="rcGender" value=""/>
       <div class="formErr" id="recoverErr"></div>
       <button class="bigBtn" id="btnRecover">IDを表示する</button>
     </div>
@@ -400,7 +443,7 @@
       </button>
     </div>
     <input type="file" id="fileIn" accept="audio/*,video/*" hidden/>
-    <footer>音声認識: Basic Pitch (Spotify) / 楽譜描画: VexFlow ・ 解析はすべて端末内で実行されます</footer>
+    <footer>音声認識: Basic Pitch (Spotify) / 楽譜描画: VexFlow ・ 分析はすべて端末内で実行されます</footer>
   </section>
 
   <!-- 録音 -->
@@ -424,8 +467,9 @@
     <p id="ytNote">URLを貼り付けると自動で読み込みます（YouTube / mp3 / wav / mp4 など）</p>
     <div id="ytFrameWrap"></div>
     <div id="ytButtons" hidden>
-      <button class="bigBtn" id="btnYtCapture">🔊 この動画の音を取り込んで楽譜にする</button>
-      <button class="bigBtn ghostBtn" id="btnYtMic">🎤 スピーカーの音をマイクで録音する</button>
+      <button class="bigBtn" id="btnYtCapture">▶ 分析する</button>
+      <button class="linkBtn" id="btnYtMicToggle" style="display:none">うまくいかない時は、マイクで録音する</button>
+      <button class="bigBtn ghostBtn" id="btnYtMic" hidden>🎤 マイクで録音する</button>
       <button class="bigBtn" id="btnYtStop" hidden>■ 止めて楽譜にする</button>
     </div>
     <div id="ytTimer">00:00</div>
@@ -583,15 +627,15 @@
     <p id="planInfo"></p>
     <hr style="border:none;border-top:1.5px solid var(--t15)"/>
     <p style="font-weight:700;margin-bottom:2px">パスワード変更</p>
-    <input id="oldPass" type="password" placeholder="現在のパスワード"/>
-    <input id="newPass" type="password" placeholder="新しいパスワード（4文字以上）"/>
+    <input id="oldPass" type="text" class="secret" placeholder="現在のパスワード" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"/>
+    <input id="newPass" type="text" class="secret" placeholder="新しいパスワード（4文字以上）" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"/>
     <div id="passMsg" style="font-size:13px;min-height:1.2em;font-weight:700"></div>
     <button class="bigBtn" id="btnChangePass" style="font-size:16px;padding:12px">変更する</button>
     <button class="bigBtn ghostBtn" id="btnCloseSettings" style="margin-top:10px;font-size:16px;padding:12px">閉じる</button>
   </div>
 </div>
 
-<div id="busyOv"><div class="spinner"></div><div id="busyText">解析中…</div></div>
+<div id="busyOv"><div class="spinner"></div><div id="busyText">分析中…</div></div>
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.2/build/cjs/vexflow.js"></script>
@@ -1025,10 +1069,14 @@ async function loadLink(){
     wrap.style.display = 'block';
     $('ytButtons').hidden = false;
     const canTab = !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
-    $('btnYtCapture').style.display = canTab ? '' : 'none';
+    // パソコン: タブ内部音声を直接取り込む（雑音ゼロ）を主役に。マイクは予備として隠す
+    // スマホ: getDisplayMediaのタブ音声が使えないため、マイク取り込みを主役にする
+    $('btnYtCapture').hidden = !canTab;
+    $('btnYtMicToggle').style.display = canTab ? '' : 'none';
+    $('btnYtMic').hidden = canTab;
     $('ytHint').textContent = canTab
-      ? 'パソコンでは上のボタンがおすすめです。「このタブ」を選んで「音声も共有」をオンにしてください'
-      : 'スマートフォンでは下のボタンで、スピーカーから音を出して録音してください';
+      ? '「▶ 分析する」を押し、表示される画面で「このタブ」＋「音声を共有」を選んでください（動画の音だけを取り込むので雑音は入りません）'
+      : 'スピーカーから音を出し、「🎤 マイクで録音する」を押してください';
     return;
   }
   if(!/^https?:\/\//i.test(url)){
@@ -1051,21 +1099,25 @@ async function loadLink(){
   }
 }
 
-function ytCommand(func){
+function ytCommand(func, ...args){
   const f = $('ytFrame');
-  if(f) f.contentWindow.postMessage(JSON.stringify({event: 'command', func, args: []}), '*');
+  if(f) f.contentWindow.postMessage(JSON.stringify({event: 'command', func, args}), '*');
 }
 
 async function ytStartTabCapture(){
   if(!Plans.gate('youtube')) return;
   let ds;
   try{
-    ds = await navigator.mediaDevices.getDisplayMedia({video: true, audio: true});
+    // preferCurrentTab: このアプリのタブ（中で動画が再生中）を選択肢に絞る。
+    // 取り込むのはタブ内部の音だけなので、周囲の雑音は一切混ざらない
+    ds = await navigator.mediaDevices.getDisplayMedia({
+      video: true, audio: true, preferCurrentTab: true, selfBrowserSurface: 'include'
+    });
   }catch(e){ toast('キャンセルしました'); return; }
   const at = ds.getAudioTracks();
   if(!at.length){
     ds.getTracks().forEach(t => t.stop());
-    toast('「音声も共有」にチェックが入っていませんでした。もう一度お試しください', true);
+    toast('「音声を共有」がオフでした。もう一度押して、音声の共有をオンにしてください', true);
     return;
   }
   ds.getVideoTracks().forEach(t => t.stop());  // 映像は使わない
@@ -1073,6 +1125,7 @@ async function ytStartTabCapture(){
   // ブラウザの「共有を停止」が押されたら取り込みを終了する
   at[0].addEventListener('ended', () => ytStopCapture());
   ytBeginRecording();
+  ytCommand('seekTo', 0);   // 最初から取り込む
   ytCommand('playVideo');
 }
 
@@ -1150,7 +1203,7 @@ async function handleAudioBuffer(buf){
   try{
     const mono = normalizeGain(await resampleTo22050(buf));
     const {frames, onsets, contours} = await runInference(mono, busyProgress);
-    state.frames = frames;
+    state.frames = medianSmoothFrames(frames);
     state.onsets = onsets;
     state.contours = contours;
     state.savedNotes = null;
@@ -1160,7 +1213,7 @@ async function handleAudioBuffer(buf){
     const notes = computeNotes();
     if(notes.length){
       $('bpm').value = estimateBPM(notes);
-      toast(`解析が完了しました！ ${notes.length}個の音を検出（${((performance.now() - t0) / 1000).toFixed(0)}秒）`);
+      toast(`分析が完了しました！ ${notes.length}個の音を検出（${((performance.now() - t0) / 1000).toFixed(0)}秒）`);
     }else{
       toast('音が見つかりませんでした。「検出感度」を高にしてみてください', true);
     }
@@ -1168,9 +1221,41 @@ async function handleAudioBuffer(buf){
     renderAll();
   }catch(e){
     console.error('transcribe failed', e);
-    toast('解析中にエラーが発生しました: ' + e.message, true);
+    toast('分析中にエラーが発生しました: ' + e.message, true);
   }
   busy(false);
+}
+
+// モデル出力のちらつき除去: フレームごとの確率に3フレーム中央値フィルタをかける。
+// 一瞬だけ高く出る誤検出や一瞬だけ落ちる途切れが消え、音の分裂・誤検出が減る
+function medianSmoothFrames(frames){
+  if(frames.length < 3) return frames;
+  const out = [frames[0]];
+  for(let i = 1; i < frames.length - 1; i++){
+    const a = frames[i-1], b = frames[i], c = frames[i+1];
+    const row = new Array(b.length);
+    for(let j = 0; j < b.length; j++){
+      const x = a[j], y = b[j], z = c[j];
+      row[j] = Math.max(Math.min(x, y), Math.min(Math.max(x, y), z));  // 3値の中央値
+    }
+    out.push(row);
+  }
+  out.push(frames[frames.length - 1]);
+  return out;
+}
+
+// 半音にじみ除去: 隣の半音が同時に弱く検出される「にじみ」を消す
+// （本物の半音のぶつかりは音量が拮抗するため残る）
+function removeSemitoneSmear(notes){
+  return notes.filter(n => {
+    const nDur = n.endTime - n.startTime;
+    for(const m of notes){
+      if(m === n || Math.abs(m.pitch - n.pitch) !== 1 || m.amp <= n.amp * 1.5) continue;
+      const overlap = Math.min(n.endTime, m.endTime) - Math.max(n.startTime, m.startTime);
+      if(overlap > nDur * 0.7) return false;
+    }
+    return true;
+  });
 }
 
 // 倍音ゴースト除去: 強い実音と同時に鳴り続ける「整数倍音/サブオクターブ位置のずっと弱い音」を除去。
@@ -1232,6 +1317,7 @@ function computeNotes(){
       amp: n.amplitude,
     }));
   list = removeHarmonicGhosts(list);   // 弱い音除去フィルタより先に（音量の比較に全音が必要）
+  list = removeSemitoneSmear(list);
   list = mergeRetriggers(list);
   return list
     .filter(n => n.amp >= o.ampThresh)
@@ -1265,9 +1351,9 @@ function busy(on){
   if(on){
     el.classList.add('open');
     busyT0 = Date.now();
-    $('busyText').textContent = '🎧 解析中…';
+    $('busyText').textContent = '🎧 分析中…';
     busyTimer = setInterval(() => {
-      $('busyText').textContent = `🎧 解析中… ${Math.round((Date.now() - busyT0) / 1000)}秒`;
+      $('busyText').textContent = `🎧 分析中… ${Math.round((Date.now() - busyT0) / 1000)}秒`;
     }, 500);
   }else{
     el.classList.remove('open');
@@ -1275,7 +1361,7 @@ function busy(on){
   }
 }
 function busyProgress(p){
-  $('busyText').textContent = `🎧 解析中… ${Math.round(p * 100)}%`;
+  $('busyText').textContent = `🎧 分析中… ${Math.round(p * 100)}%`;
 }
 
 /* ================= 楽譜化（後処理） ================= */
@@ -1923,9 +2009,14 @@ $('toSignup').addEventListener('click', () => {
   $('signupStep1').hidden = false;
   $('signupStep2').hidden = true;
   $('signupErr').textContent = '';
+  resetGenderSeg('suGenderSeg', 'suGender');
   showView('viewSignup');
 });
-$('toRecover').addEventListener('click', () => { $('recoverErr').textContent = ''; showView('viewRecover'); });
+$('toRecover').addEventListener('click', () => {
+  $('recoverErr').textContent = '';
+  resetGenderSeg('rcGenderSeg', 'rcGender');
+  showView('viewRecover');
+});
 $('btnLogout').addEventListener('click', () => { if(confirm('ログアウトしますか？')) Auth.logout(); });
 
 // アカウント作成（プライバシーポリシー同意 → 入力）
@@ -1952,7 +2043,8 @@ $('btnSignup').addEventListener('click', async () => {
     return;
   }
   // 入力欄を即クリア（個人情報を画面に残さない）
-  $('suName').value = ''; $('suBday').value = ''; $('suGender').value = '';
+  $('suName').value = ''; $('suBday').value = '';
+  resetGenderSeg('suGenderSeg', 'suGender');
   $('createdId').textContent = r.id;
   $('createdPass').innerHTML = `初期パスワードは<b>名前＋誕生日の月日</b>（例: ${r.pass}）です。<br/>⚙️からいつでも変更できます。`;
   $('createdModal').classList.add('open');
@@ -1973,13 +2065,28 @@ $('btnRecover').addEventListener('click', async () => {
   err.textContent = '';
   if(!name || !bday || !gender){ err.textContent = 'すべて入力してください'; return; }
   const id = await deriveId(name, bday, gender);
-  $('rcName').value = ''; $('rcBday').value = ''; $('rcGender').value = '';
+  $('rcName').value = ''; $('rcBday').value = '';
+  resetGenderSeg('rcGenderSeg', 'rcGender');
   if(Auth.accounts()[id]){
     err.textContent = `あなたのIDは「${id}」です`;
   }else{
     err.textContent = 'アカウントが見つかりませんでした。情報が異なるか、まだ作成されていません';
   }
 });
+
+// 性別マークの選択
+function bindGenderSeg(segId, hidId){
+  $(segId).querySelectorAll('.segBtn').forEach(b => b.addEventListener('click', () => {
+    $(hidId).value = b.dataset.v;
+    $(segId).querySelectorAll('.segBtn').forEach(x => x.classList.toggle('active', x === b));
+  }));
+}
+function resetGenderSeg(segId, hidId){
+  $(hidId).value = '';
+  $(segId).querySelectorAll('.segBtn').forEach(x => x.classList.remove('active'));
+}
+bindGenderSeg('suGenderSeg', 'suGender');
+bindGenderSeg('rcGenderSeg', 'rcGender');
 
 // テーマ
 document.querySelectorAll('.themeDot').forEach(d => d.addEventListener('click', () => applyTheme(d.dataset.theme)));
@@ -1998,7 +2105,7 @@ $('cardAdmin').addEventListener('click', () => { renderAdmin(); showView('viewAd
 $('fileIn').addEventListener('change', async e => {
   const f = e.target.files[0];
   if(!f) return;
-  toast(`「${f.name}」を解析します…`);
+  toast(`「${f.name}」を分析します…`);
   await decodeAndTranscribe(await f.arrayBuffer());
   e.target.value = '';
 });
@@ -2013,6 +2120,11 @@ $('btnYtLoad').addEventListener('click', loadLink);
 $('ytUrl').addEventListener('keydown', e => { if(e.key === 'Enter') loadLink(); });
 $('ytUrl').addEventListener('paste', () => setTimeout(loadLink, 60));
 $('btnYtCapture').addEventListener('click', ytStartTabCapture);
+$('btnYtMicToggle').addEventListener('click', () => {
+  $('btnYtMic').hidden = false;
+  $('btnYtMicToggle').style.display = 'none';
+  $('ytHint').textContent = 'スピーカーから音を出し、「🎤 マイクで録音する」を押してください（こちらは周囲の音も入ります）';
+});
 $('btnYtMic').addEventListener('click', ytStartMicCapture);
 $('btnYtStop').addEventListener('click', ytStopCapture);
 
